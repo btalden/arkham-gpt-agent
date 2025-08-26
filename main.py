@@ -62,18 +62,24 @@ async def send_to_slack(message: str):
     async with httpx.AsyncClient() as client:
         await client.post(SLACK_WEBHOOK_URL, json={"text": message})
 
+from fastapi.responses import JSONResponse
+
+@app.get("/health")
+async def health_check():
+    return {"status": "alive"}
+
 @app.post("/arkham-webhook")
 async def arkham_webhook(request: Request):
     try:
         payload = await request.json()
     except Exception:
-        # If Arkham is just testing with no/invalid JSON, reply safely
-        return {"status": "ok", "message": "ping acknowledged"}
+        # Arkham test ping or invalid JSON → always return OK
+        return JSONResponse(content={"status": "ok"}, status_code=200)
 
     try:
         analysis = await analyze_alert(payload)
         await send_to_slack(analysis)
         return {"status": "ok", "analysis": analysis}
     except Exception as e:
-        # Always return 200 so Arkham validation doesn't fail
-        return {"status": "ok", "message": f"processing error: {str(e)}"}
+        # Don’t let Arkham see a failure
+        return JSONResponse(content={"status": "ok", "message": str(e)}, status_code=200)
