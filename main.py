@@ -67,9 +67,13 @@ async def arkham_webhook(request: Request):
     try:
         payload = await request.json()
     except Exception:
-        # If Arkham sends a test ping without JSON, just return 200
+        # If Arkham is just testing with no/invalid JSON, reply safely
         return {"status": "ok", "message": "ping acknowledged"}
 
-    analysis = await analyze_alert(payload)
-    await send_to_slack(analysis)
-    return {"status": "ok", "analysis": analysis}
+    try:
+        analysis = await analyze_alert(payload)
+        await send_to_slack(analysis)
+        return {"status": "ok", "analysis": analysis}
+    except Exception as e:
+        # Always return 200 so Arkham validation doesn't fail
+        return {"status": "ok", "message": f"processing error: {str(e)}"}
