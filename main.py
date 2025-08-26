@@ -18,41 +18,23 @@ import os
 app = FastAPI()
 
 async def analyze_alert(payload: dict) -> str:
-    """
-    Send Arkham alert payload to GPT for interpretation
-    """
-    # Simplify key info for GPT
-    tx_summary = f"""
-    Entity: {payload.get('entity_name')}
-    From: {payload.get('from_address')}
-    To: {payload.get('to_address')}
-    Token: {payload.get('token_symbol')}
-    Amount: {payload.get('amount')}
-    USD Value: {payload.get('usd_value')}
-    Network: {payload.get('network')}
-    Time: {payload.get('timestamp')}
-    """
-
     prompt = f"""
-    You are a crypto trading analyst. Interpret the following Arkham alert:
+    You are monitoring blockchain alerts from Arkham Intelligence.
 
-    {tx_summary}
+    Here is a new alert payload (JSON):
+    {payload}
 
-    Explain in plain English what this transaction likely means.
-    Consider whether it's:
-    - An exchange deposit (likely trading/selling)
-    - An exchange withdrawal (likely storage or on-chain use)
-    - A wallet-to-wallet move (likely custody reshuffle)
-    - A DeFi interaction (staking, swapping, etc.)
-
-    Be concise but insightful.
+    Please explain in plain English what happened, including:
+    - Who sent the tokens (entity + label if available)
+    - Who received them (entity + label if available)
+    - What token was moved, how much, and USD value if included
+    - What the most likely interpretation is (trade, custody, bridge, etc.)
+    - Any alternative explanations worth noting
     """
-
     response = openai.chat.completions.create(
-    model="gpt-5",
-    messages=[{"role": "user", "content": prompt}]
-)
-
+        model="gpt-5",
+        messages=[{"role": "user", "content": prompt}]
+    )
     return response.choices[0].message.content
 
 async def send_to_slack(message: str):
@@ -77,6 +59,7 @@ async def arkham_webhook(request: Request):
         return {"status": "ok", "message": "ping acknowledged"}
 
     try:
+        # Pass the full Arkham payload to GPT
         analysis = await analyze_alert(payload)
         await send_to_slack(analysis)
         return {"status": "ok", "analysis": analysis}
