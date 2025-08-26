@@ -64,10 +64,12 @@ async def send_to_slack(message: str):
 
 @app.post("/arkham-webhook")
 async def arkham_webhook(request: Request):
-    payload = await request.json()
-    print("Received Arkham alert:", payload)
+    try:
+        payload = await request.json()
+    except Exception:
+        # If Arkham sends a test ping without JSON, just return 200
+        return {"status": "ok", "message": "ping acknowledged"}
 
     analysis = await analyze_alert(payload)
     await send_to_slack(analysis)
-
     return {"status": "ok", "analysis": analysis}
