@@ -1,0 +1,22 @@
+# Environment files (API keys, secrets)
+.env
+.env.*
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS system junk
+.DS_Store
+
+# Don’t track environment secrets
+.env
+
+# Don’t track Python cache
+__pycache__/
+*.pyc
+
+# Don’t track macOS system files
+.DS_Store
