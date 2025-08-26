@@ -64,22 +64,22 @@ async def send_to_slack(message: str):
 
 from fastapi.responses import JSONResponse
 
-@app.get("/health")
-async def health_check():
-    return {"status": "alive"}
+@app.get("/arkham-webhook")
+async def arkham_webhook_get():
+    # For Arkham’s initial GET validation
+    return {"status": "ok", "message": "webhook alive"}
 
 @app.post("/arkham-webhook")
 async def arkham_webhook(request: Request):
     try:
         payload = await request.json()
     except Exception:
-        # Arkham test ping or invalid JSON → always return OK
-        return JSONResponse(content={"status": "ok"}, status_code=200)
+        return {"status": "ok", "message": "ping acknowledged"}
 
     try:
         analysis = await analyze_alert(payload)
         await send_to_slack(analysis)
         return {"status": "ok", "analysis": analysis}
     except Exception as e:
-        # Don’t let Arkham see a failure
-        return JSONResponse(content={"status": "ok", "message": str(e)}, status_code=200)
+        return {"status": "ok", "message": f"processing error: {str(e)}"}
+
