@@ -66,6 +66,9 @@ async def arkham_webhook(request: Request):
     except Exception as e:
         return {"status": "ok", "message": f"processing error: {str(e)}"}
 
-@app.get("/health")
-async def health_check():
-    return {"status": "alive"}
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.api_route("/health", methods=["GET", "HEAD"])
+async def health_check(request: Request):
+    return JSONResponse(content={"status": "alive"})
