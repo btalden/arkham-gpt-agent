@@ -66,3 +66,6 @@ async def arkham_webhook(request: Request):
     except Exception as e:
         return {"status": "ok", "message": f"processing error: {str(e)}"}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "alive"}
