@@ -77,3 +77,8 @@ async def arkham_webhook(request: Request, arkham_webhook_token: str = Header(No
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check(request: Request):
     return JSONResponse(content={"status": "alive"})
+
+if __name__ == "__main__":
+    import uvicorn, os
+    port = int(os.environ.get("PORT", 8000))  # Render sets $PORT
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
