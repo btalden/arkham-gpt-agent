@@ -51,7 +51,7 @@ async def arkham_webhook_get():
 
 from fastapi import Header, HTTPException
 
-ARKHAM_SECRET = "OsmzwOkwjGE1s8"  # copy from Arkham webhook settings
+ARKHAM_SECRET = "JTzghWzJI327Vh"  # copy from Arkham webhook settings
 
 @app.post("/arkham-webhook")
 async def arkham_webhook(request: Request, arkham_webhook_token: str = Header(None)):
@@ -80,5 +80,5 @@ async def health_check(request: Request):
 
 if __name__ == "__main__":
     import uvicorn, os
-    port = int(os.environ.get("PORT", 8000))  # Render sets $PORT
+    port = int(os.environ.get("PORT", 8000))  # Render provides $PORT
     uvicorn.run("main:app", host="0.0.0.0", port=port)
