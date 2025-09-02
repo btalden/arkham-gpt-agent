@@ -1,5 +1,4 @@
-#load env and fetch secrets
-
+# load env and fetch secrets
 from dotenv import load_dotenv
 import os
 
@@ -8,12 +7,11 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
-#load other stuff
-
+# load other stuff
 from fastapi import FastAPI, Request
 import openai
 import httpx
-import os
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -42,9 +40,9 @@ async def send_to_slack(message: str):
     Send interpreted message to Slack
     """
     async with httpx.AsyncClient() as client:
-        await client.post(SLACK_WEBHOOK_URL, json={"text": message})
-
-from fastapi.responses import JSONResponse
+        resp = await client.post(SLACK_WEBHOOK_URL, json={"text": message})
+        print("Slack response:", resp.status_code, resp.text)
+        return resp.text
 
 @app.get("/arkham-webhook")
 async def arkham_webhook_get():
@@ -66,15 +64,6 @@ async def arkham_webhook(request: Request):
     except Exception as e:
         return {"status": "ok", "message": f"processing error: {str(e)}"}
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
-
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check(request: Request):
     return JSONResponse(content={"status": "alive"})
-
-
-#Log Slack Responses
-async def send_to_slack(message: str):
-    resp = requests.post(SLACK_WEBHOOK, json={"text": message})
-    print("Slack response:", resp.status_code, resp.text)
