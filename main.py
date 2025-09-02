@@ -72,3 +72,7 @@ from fastapi.responses import JSONResponse
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check(request: Request):
     return JSONResponse(content={"status": "alive"})
+
+async def send_to_slack(message: str):
+    resp = requests.post(SLACK_WEBHOOK, json={"text": message})
+    print("Slack response:", resp.status_code, resp.text)
