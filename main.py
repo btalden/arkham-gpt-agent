@@ -53,26 +53,20 @@ from fastapi import Header, HTTPException
 
 ARKHAM_SECRET = "JTzghWzJI327Vh"  # copy from Arkham webhook settings
 
+from fastapi import Header
+
 @app.post("/arkham-webhook")
 async def arkham_webhook(request: Request, arkham_webhook_token: str = Header(None)):
-    # Validate Arkham webhook token
-    if arkham_webhook_token != ARKHAM_SECRET:
-        print("⚠️ Invalid Arkham token:", arkham_webhook_token)
-        raise HTTPException(status_code=403, detail="Invalid webhook token")
+    payload = await request.json()
+    print("Arkham-Webhook-Token header:", arkham_webhook_token)
+    print("Incoming payload:", payload)
 
-    try:
-        payload = await request.json()
-        print("Incoming payload:", payload)
-    except Exception:
-        return {"status": "ok", "message": "ping acknowledged"}
+    # Forward both header & payload to Slack so you can see exactly what Arkham sends
+    await send_to_slack(
+        f"*Arkham-Webhook-Token*: `{arkham_webhook_token}`\n*Payload*: ```{payload}```"
+    )
 
-    try:
-        analysis = await analyze_alert(payload)
-        await send_to_slack(analysis)
-        return {"status": "ok", "analysis": analysis}
-    except Exception as e:
-        print("Processing error:", e)
-        return {"status": "ok", "message": f"processing error: {str(e)}"}
+    return {"status": "ok"}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check(request: Request):
