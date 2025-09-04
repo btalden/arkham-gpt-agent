@@ -8,7 +8,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 # load other stuff
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 import openai
 import httpx
 from fastapi.responses import JSONResponse
@@ -49,12 +49,8 @@ async def arkham_webhook_get():
     # For Arkham’s initial GET validation
     return {"status": "ok", "message": "webhook alive"}
 
-from fastapi import Header, HTTPException
-
-ARKHAM_SECRET = "A4xSPyq3GPAWIW"  # copy from Arkham webhook settings
-
-from fastapi import Header
-
+# Debug mode: accept alerts on both "/" and "/arkham-webhook"
+@app.post("/")
 @app.post("/arkham-webhook")
 async def arkham_webhook(request: Request, arkham_webhook_token: str = Header(None)):
     payload = await request.json()
@@ -72,11 +68,11 @@ async def arkham_webhook(request: Request, arkham_webhook_token: str = Header(No
 async def health_check(request: Request):
     return JSONResponse(content={"status": "alive"})
 
-if __name__ == "__main__":
-    import uvicorn, os
-    port = int(os.environ.get("PORT", 8000))  # Render injects PORT
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
-
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {"status": "ok"}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))  # Render injects PORT
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
