@@ -51,7 +51,7 @@ async def arkham_webhook_get():
 
 from fastapi import Header, HTTPException
 
-ARKHAM_SECRET = "JTzghWzJI327Vh"  # copy from Arkham webhook settings
+ARKHAM_SECRET = "A4xSPyq3GPAWIW"  # copy from Arkham webhook settings
 
 from fastapi import Header
 
