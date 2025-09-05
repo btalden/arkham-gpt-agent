@@ -49,22 +49,24 @@ async def arkham_webhook_get():
     # For Arkham’s initial GET validation
     return {"status": "ok", "message": "webhook alive"}
 
-# Debug mode: accept alerts on both "/" and "/arkham-webhook"
 @app.post("/")
-@app.post("/arkham-webhook")
+@app.post("/arkham-webhook")   # keep both, in case Arkham fixes it later
 async def arkham_webhook(request: Request):
-    headers = dict(request.headers)
     try:
         payload = await request.json()
-    except Exception:
-        payload = {"error": "could not parse JSON"}
+        print("ARKHAM PAYLOAD:", payload)   # log full payload
+    except Exception as e:
+        print("Error parsing JSON:", e)
+        return {"status": "ok", "message": "ping acknowledged"}
 
-    print("Incoming headers:", headers)
-    print("Incoming payload:", payload)
+    try:
+        # Pass the full Arkham payload to GPT
+        analysis = await analyze_alert(payload)
+        await send_to_slack(analysis)
+    except Exception as e:
+        print("Error processing payload:", e)
+        return {"status": "error", "detail": str(e)}
 
-    await send_to_slack(
-        f"*Raw Arkham Request*\nHeaders: ```{headers}```\nPayload: ```{payload}```"
-    )
     return {"status": "ok"}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
