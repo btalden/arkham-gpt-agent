@@ -52,16 +52,19 @@ async def arkham_webhook_get():
 # Debug mode: accept alerts on both "/" and "/arkham-webhook"
 @app.post("/")
 @app.post("/arkham-webhook")
-async def arkham_webhook(request: Request, arkham_webhook_token: str = Header(None)):
-    payload = await request.json()
-    print("Arkham-Webhook-Token header:", arkham_webhook_token)
+async def arkham_webhook(request: Request):
+    headers = dict(request.headers)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {"error": "could not parse JSON"}
+
+    print("Incoming headers:", headers)
     print("Incoming payload:", payload)
 
-    # Forward both header & payload to Slack so you can see exactly what Arkham sends
     await send_to_slack(
-        f"*Arkham-Webhook-Token*: `{arkham_webhook_token}`\n*Payload*: ```{payload}```"
+        f"*Raw Arkham Request*\nHeaders: ```{headers}```\nPayload: ```{payload}```"
     )
-
     return {"status": "ok"}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
