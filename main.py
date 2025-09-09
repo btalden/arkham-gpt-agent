@@ -153,7 +153,7 @@ async def health_check(_request: Request):
 async def root():
     return {"status": "ok"}
 
-# Quick viewer for recent logs (don’t expose publicly in prod)
+# Quick viewer for recent logs (don’t expose publicly in production)
 @app.get("/logs")
 async def get_logs(limit: int = 50):
     async with aiosqlite.connect(DB_PATH) as db:
