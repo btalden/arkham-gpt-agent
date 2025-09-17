@@ -6,10 +6,10 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
-DB_PATH = os.getenv("DB_PATH", "arkham.db")  # local sqlite file (ephemeral on Render free tier)
+ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")  # <- new
+DB_PATH = os.getenv("DB_PATH", "arkham.db")
 
-# deps
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import JSONResponse
 import openai
 import httpx
@@ -90,7 +90,6 @@ async def analyze_alert(payload: dict) -> str:
     - What the most likely interpretation is (trade, custody, bridge, etc.)
     - Any alternative explanations worth noting
     """
-    # Requires openai>=1.0.0
     resp = openai.chat.completions.create(
         model="gpt-5",
         messages=[{"role": "user", "content": prompt}]
@@ -122,12 +121,20 @@ async def process_payload(payload: dict, row_id: int):
 async def arkham_webhook_get():
     return {"status": "ok", "message": "webhook alive"}
 
-# ACK fast; process in background; catch both root and /arkham-webhook
 @app.post("/")
 @app.post("/arkham-webhook")
-async def arkham_webhook(request: Request):
+async def arkham_webhook(request: Request, authorization: str = Header(None)):
+    headers = dict(request.headers)
+    print("HEADERS:", headers)  # log all headers
+
+    # Optional token validation
+    if ARKHAM_WEBHOOK_TOKEN:
+        expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
+        if authorization != expected:
+            print("Token mismatch:", authorization, "expected:", expected)
+            raise HTTPException(status_code=401, detail="Invalid token")
+
     try:
-        headers = dict(request.headers)
         raw = await request.body()
         print("ARKHAM REQUEST ->", request.method, headers.get("content-type"), raw[:1000])
         try:
@@ -138,11 +145,8 @@ async def arkham_webhook(request: Request):
         print("Error reading request:", e)
         headers, payload = {}, {}
 
-    # insert log row synchronously (fast) to get row_id
     row_id = await log_insert(headers, payload)
-    # process later
     asyncio.create_task(process_payload(payload, row_id))
-    # immediate ACK to Arkham
     return {"status": "ok"}
 
 @app.api_route("/health", methods=["GET", "HEAD"])
@@ -153,7 +157,6 @@ async def health_check(_request: Request):
 async def root():
     return {"status": "ok"}
 
-# Quick viewer for recent logs (don’t expose publicly in production)
 @app.get("/logs")
 async def get_logs(limit: int = 50):
     async with aiosqlite.connect(DB_PATH) as db:
