@@ -119,45 +119,43 @@ async def process_payload(payload: dict, row_id: int):
 # ---------- Shared handler ----------
 async def handle_arkham_request(request: Request, authorization: str | None):
     headers = dict(request.headers)
-    print("HEADERS:", headers)
+    body = await request.body()
+    print("DEBUG REQUEST:", request.method, headers, body[:500])
 
     # Always ACK non-POST requests (GET/HEAD/OPTIONS) so Arkham verification succeeds
     if request.method != "POST":
         return {"status": "ok"}
 
-    # For POST requests, enforce token if set
+    # Try parsing JSON
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    # If Arkham sends a challenge, echo it back
+    if isinstance(payload, dict) and "challenge" in payload:
+        print("Received challenge:", payload["challenge"])
+        return {"challenge": payload["challenge"]}
+
+    # For POST alerts, enforce token if set
     if ARKHAM_WEBHOOK_TOKEN:
         expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
         if authorization != expected:
             print("Token mismatch:", authorization, "expected:", expected)
             raise HTTPException(status_code=401, detail="Invalid token")
 
-    try:
-        raw = await request.body()
-        print("ARKHAM REQUEST ->", request.method, headers.get("content-type"), raw[:1000])
-        try:
-            payload = await request.json()
-        except Exception:
-            payload = {}
-    except Exception as e:
-        print("Error reading request:", e)
-        headers, payload = {}, {}
-
+    # Insert and process payload
     row_id = await log_insert(headers, payload)
     asyncio.create_task(process_payload(payload, row_id))
     return {"status": "ok"}
 
 # ---------- Routes ----------
-@app.get("/arkham-webhook")
-async def arkham_webhook_get():
-    return {"status": "ok", "message": "webhook alive"}
-
-@app.post("/arkham-webhook")
-async def arkham_webhook_post(request: Request, authorization: str = Header(None)):
-    return await handle_arkham_request(request, authorization)
-
 @app.api_route("/", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
 async def root_any(request: Request, authorization: str = Header(None)):
+    return await handle_arkham_request(request, authorization)
+
+@app.api_route("/arkham-webhook", methods=["GET","POST"])
+async def arkham_webhook(request: Request, authorization: str = Header(None)):
     return await handle_arkham_request(request, authorization)
 
 @app.api_route("/health", methods=["GET", "HEAD"])
