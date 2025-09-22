@@ -6,7 +6,7 @@ load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
-ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")  # <- new
+ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")
 DB_PATH = os.getenv("DB_PATH", "arkham.db")
 
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -121,11 +121,19 @@ async def process_payload(payload: dict, row_id: int):
 async def arkham_webhook_get():
     return {"status": "ok", "message": "webhook alive"}
 
-@app.post("/")
 @app.post("/arkham-webhook")
-async def arkham_webhook(request: Request, authorization: str = Header(None)):
+async def arkham_webhook_post(request: Request, authorization: str = Header(None)):
+    return await handle_arkham_request(request, authorization)
+
+# --- NEW: catch-all at "/" for ALL methods ---
+@app.api_route("/", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
+async def root_any(request: Request, authorization: str = Header(None)):
+    return await handle_arkham_request(request, authorization)
+
+# Shared handler
+async def handle_arkham_request(request: Request, authorization: str | None):
     headers = dict(request.headers)
-    print("HEADERS:", headers)  # log all headers
+    print("HEADERS:", headers)
 
     # Optional token validation
     if ARKHAM_WEBHOOK_TOKEN:
@@ -152,10 +160,6 @@ async def arkham_webhook(request: Request, authorization: str = Header(None)):
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check(_request: Request):
     return JSONResponse(content={"status": "alive"})
-
-@app.api_route("/", methods=["GET", "HEAD"])
-async def root():
-    return {"status": "ok"}
 
 @app.get("/logs")
 async def get_logs(limit: int = 50):
