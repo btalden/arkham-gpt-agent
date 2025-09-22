@@ -116,26 +116,16 @@ async def process_payload(payload: dict, row_id: int):
         print("Processing error:", e)
         await log_update(row_id, error=str(e))
 
-# ---------- Routes ----------
-@app.get("/arkham-webhook")
-async def arkham_webhook_get():
-    return {"status": "ok", "message": "webhook alive"}
-
-@app.post("/arkham-webhook")
-async def arkham_webhook_post(request: Request, authorization: str = Header(None)):
-    return await handle_arkham_request(request, authorization)
-
-# --- NEW: catch-all at "/" for ALL methods ---
-@app.api_route("/", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
-async def root_any(request: Request, authorization: str = Header(None)):
-    return await handle_arkham_request(request, authorization)
-
-# Shared handler
+# ---------- Shared handler ----------
 async def handle_arkham_request(request: Request, authorization: str | None):
     headers = dict(request.headers)
     print("HEADERS:", headers)
 
-    # Optional token validation
+    # Always ACK non-POST requests (GET/HEAD/OPTIONS) so Arkham verification succeeds
+    if request.method != "POST":
+        return {"status": "ok"}
+
+    # For POST requests, enforce token if set
     if ARKHAM_WEBHOOK_TOKEN:
         expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
         if authorization != expected:
@@ -156,6 +146,19 @@ async def handle_arkham_request(request: Request, authorization: str | None):
     row_id = await log_insert(headers, payload)
     asyncio.create_task(process_payload(payload, row_id))
     return {"status": "ok"}
+
+# ---------- Routes ----------
+@app.get("/arkham-webhook")
+async def arkham_webhook_get():
+    return {"status": "ok", "message": "webhook alive"}
+
+@app.post("/arkham-webhook")
+async def arkham_webhook_post(request: Request, authorization: str = Header(None)):
+    return await handle_arkham_request(request, authorization)
+
+@app.api_route("/", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
+async def root_any(request: Request, authorization: str = Header(None)):
+    return await handle_arkham_request(request, authorization)
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check(_request: Request):
