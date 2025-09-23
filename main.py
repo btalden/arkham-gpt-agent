@@ -177,8 +177,3 @@ async def get_logs(limit: int = 50):
         )
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
