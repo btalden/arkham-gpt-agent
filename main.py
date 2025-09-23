@@ -7,6 +7,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")
+ARKHAM_DEBUG = os.getenv("ARKHAM_DEBUG", "false").lower() == "true"
 DB_PATH = os.getenv("DB_PATH", "arkham.db")
 
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -137,8 +138,8 @@ async def handle_arkham_request(request: Request, authorization: str | None):
         print("Received challenge:", payload["challenge"])
         return {"challenge": payload["challenge"]}
 
-    # For POST alerts, enforce token if set
-    if ARKHAM_WEBHOOK_TOKEN:
+    # Token check (skipped if debug mode is on)
+    if not ARKHAM_DEBUG and ARKHAM_WEBHOOK_TOKEN:
         expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
         if authorization != expected:
             print("Token mismatch:", authorization, "expected:", expected)
@@ -176,3 +177,8 @@ async def get_logs(limit: int = 50):
         )
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
