@@ -179,5 +179,3 @@ async def get_logs(limit: int = 50):
         )
         rows = await cur.fetchall()
         return [dict(r) for r in rows]
-
-#testentry
