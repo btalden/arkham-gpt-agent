@@ -1,6 +1,2 @@
-aiosqlite>=0.19.0
 fastapi
 uvicorn[standard]
-openai>=1.0.0
-httpx
-python-dotenv
