@@ -7,7 +7,6 @@ from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
 from openai import AsyncOpenAI
 
-# Env vars
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -15,7 +14,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 app = FastAPI()
 
-# In-memory log (last 10 alerts)
 recent_alerts = deque(maxlen=10)
 
 # ---------- Utils ----------
@@ -41,7 +39,7 @@ async def analyze_alert(payload: dict) -> str:
         return f"(Error analyzing alert: {e})"
 
 async def process_alert(payload: dict):
-    recent_alerts.append(payload)  # keep in memory for /logs
+    recent_alerts.append(payload)
     summary = await analyze_alert(payload)
     await post_to_slack(summary)
 
@@ -55,22 +53,28 @@ async def root():
     return {"status": "ok"}
 
 @app.api_route("/arkham-webhook", methods=["POST"])
+@app.api_route("/", methods=["POST"])  # also catch root POSTs
 async def arkham_webhook(request: Request, authorization: str = Header(None)):
-    expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
-    if not authorization or authorization != expected:
-        return JSONResponse(status_code=401, content={"error": "Invalid token"})
-
     payload = await request.json()
     print("Received payload:", payload)
+
+    # Always log attempt, even if token mismatch
+    recent_alerts.append({
+        "auth_header": authorization,
+        "payload": payload
+    })
 
     # Arkham challenge handshake
     if "challenge" in payload:
         return {"challenge": payload["challenge"]}
 
-    # Respond immediately, process in background
-    asyncio.create_task(process_alert(payload))
-
-    return {"status": "accepted"}
+    # Only process if token matches
+    expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
+    if authorization == expected:
+        asyncio.create_task(process_alert(payload))
+        return {"status": "accepted"}
+    else:
+        return JSONResponse(status_code=401, content={"error": "Invalid token", "received_auth": authorization})
 
 @app.get("/logs")
 async def get_logs():
