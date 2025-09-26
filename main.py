@@ -1,12 +1,12 @@
 import os
 import json
 import httpx
-import asyncio
 from collections import deque
 from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
 from openai import AsyncOpenAI
 
+# Env vars
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -14,6 +14,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 app = FastAPI()
 
+# In-memory log of last 10 alerts
 recent_alerts = deque(maxlen=10)
 
 # ---------- Utils ----------
@@ -22,7 +23,8 @@ async def post_to_slack(text: str):
         print("Slack webhook not set.")
         return
     async with httpx.AsyncClient() as http:
-        await http.post(SLACK_WEBHOOK_URL, json={"text": text})
+        r = await http.post(SLACK_WEBHOOK_URL, json={"text": text})
+        print("Slack response:", r.status_code, r.text)
 
 async def analyze_alert(payload: dict) -> str:
     try:
@@ -37,11 +39,6 @@ async def analyze_alert(payload: dict) -> str:
         return resp.choices[0].message.content.strip()
     except Exception as e:
         return f"(Error analyzing alert: {e})"
-
-async def process_alert(payload: dict):
-    recent_alerts.append(payload)
-    summary = await analyze_alert(payload)
-    await post_to_slack(summary)
 
 # ---------- Routes ----------
 @app.get("/health")
@@ -58,23 +55,29 @@ async def arkham_webhook(request: Request, authorization: str = Header(None)):
     payload = await request.json()
     print("Received payload:", payload)
 
-    # Always log attempt, even if token mismatch
+    # Always log the attempt (for debugging)
     recent_alerts.append({
         "auth_header": authorization,
         "payload": payload
     })
 
-    # Arkham challenge handshake
+    # Handle Arkham handshake
     if "challenge" in payload:
         return {"challenge": payload["challenge"]}
 
-    # Only process if token matches
+    # Token check
     expected = f"Bearer {ARKHAM_WEBHOOK_TOKEN}"
-    if authorization == expected:
-        asyncio.create_task(process_alert(payload))
-        return {"status": "accepted"}
-    else:
-        return JSONResponse(status_code=401, content={"error": "Invalid token", "received_auth": authorization})
+    if authorization != expected:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Invalid token", "received_auth": authorization}
+        )
+
+    # Process inline (guaranteed to run before returning)
+    summary = await analyze_alert(payload)
+    await post_to_slack(summary)
+
+    return {"status": "accepted"}
 
 @app.get("/logs")
 async def get_logs():
