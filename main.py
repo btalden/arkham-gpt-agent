@@ -1,10 +1,13 @@
 import os
 import json
 import httpx
+import asyncio
+from collections import deque
 from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
 from openai import AsyncOpenAI
 
+# Env vars
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 ARKHAM_WEBHOOK_TOKEN = os.getenv("ARKHAM_WEBHOOK_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -12,6 +15,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 app = FastAPI()
 
+# In-memory log (last 10 alerts)
+recent_alerts = deque(maxlen=10)
+
+# ---------- Utils ----------
 async def post_to_slack(text: str):
     if not SLACK_WEBHOOK_URL:
         print("Slack webhook not set.")
@@ -33,6 +40,12 @@ async def analyze_alert(payload: dict) -> str:
     except Exception as e:
         return f"(Error analyzing alert: {e})"
 
+async def process_alert(payload: dict):
+    recent_alerts.append(payload)  # keep in memory for /logs
+    summary = await analyze_alert(payload)
+    await post_to_slack(summary)
+
+# ---------- Routes ----------
 @app.get("/health")
 async def health():
     return {"status": "alive"}
@@ -50,10 +63,15 @@ async def arkham_webhook(request: Request, authorization: str = Header(None)):
     payload = await request.json()
     print("Received payload:", payload)
 
+    # Arkham challenge handshake
     if "challenge" in payload:
         return {"challenge": payload["challenge"]}
 
-    summary = await analyze_alert(payload)
-    await post_to_slack(summary)
+    # Respond immediately, process in background
+    asyncio.create_task(process_alert(payload))
 
-    return {"status": "processed"}
+    return {"status": "accepted"}
+
+@app.get("/logs")
+async def get_logs():
+    return {"alerts": list(recent_alerts)}
